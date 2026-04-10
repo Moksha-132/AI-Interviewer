@@ -6,6 +6,7 @@ const endBtn = document.getElementById('endBtn');
 
 let recognition;
 let ollamaContext = [];
+let startTime = null;
 const candidateName = "{{ name }}";
 
 // Initialize Speech Recognition
@@ -66,27 +67,66 @@ function speak(text) {
 }
 
 async function sendToAI(text) {
-    listenBtn.style.display = 'none';
+    const listenBtn = document.getElementById('listenBtn');
+    listenBtn.disabled = true;
+    listenBtn.style.opacity = '0.5';
+    listenBtn.innerText = 'AI IS THINKING...';
+
+    // Calculate elapsed time
+    const elapsedMinutes = startTime ? (Date.now() - startTime) / 60000 : 0;
+
     const response = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text, context: ollamaContext })
+        body: JSON.stringify({ 
+            prompt: text, 
+            context: ollamaContext,
+            elapsed_minutes: elapsedMinutes
+        })
     });
     
     const data = await response.json();
-    if (data.response) {
-        ollamaContext = data.context;
-        addMessage(data.response, 'ai');
-        speak(data.response);
+    let aiResponse = data.response || "";
+    
+    // Check for conclusion tag
+    const isConcluding = aiResponse.includes('[CONCLUDE]');
+    if (isConcluding) {
+        aiResponse = aiResponse.replace('[CONCLUDE]', '').trim();
     }
+
+    listenBtn.disabled = false;
+    listenBtn.style.opacity = '1';
+    listenBtn.innerText = 'SPEAK NOW';
+
+    if (aiResponse) {
+        ollamaContext = data.context;
+        addMessage(aiResponse, 'ai');
+        speak(aiResponse);
+        
+        if (isConcluding) {
+            endInterviewInternally();
+        }
+    }
+}
+
+function endInterviewInternally() {
+    listenBtn.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.style.textAlign = 'center';
+    msg.style.padding = '1rem';
+    msg.style.color = '#4ade80';
+    msg.innerHTML = "<h3>Interview Completed Successfully</h3><p>You may now close this window.</p>";
+    chatMessages.appendChild(msg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 startBtn.onclick = async () => {
     await initCamera();
+    startTime = Date.now(); // Record start time
     startBtn.style.display = 'none';
     endBtn.style.display = 'inline-block';
     
-    const greeting = `Hello! I am your AI interviewer today. Thank you for joining. Let's start the interview. Can you please introduce yourself?`;
+    const greeting = `Hello! I am your AI interviewer today. I'll be conducting this session for about 10-15 minutes. Can you please introduce yourself?`;
     addMessage(greeting, 'ai');
     speak(greeting);
 };

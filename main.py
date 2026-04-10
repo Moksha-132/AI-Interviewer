@@ -63,11 +63,32 @@ def chat():
     data = request.get_json()
     prompt = data.get("prompt")
     context = data.get("context", [])
+    elapsed_minutes = data.get("elapsed_minutes", 0)
+    
+    # Guidelines for the AI
+    if elapsed_minutes < 10:
+        timing_instruction = (
+            f"Note: Only {elapsed_minutes:.1f} minutes have passed. The interview MUST last at least 10 minutes. "
+            "Continue asking deep technical or behavioral questions to evaluate the candidate."
+        )
+    else:
+        timing_instruction = (
+            f"{elapsed_minutes:.1f} minutes have passed. You may now conclude the interview if you have enough information. "
+            "If you decide to end, you MUST start your response with exactly '[CONCLUDE]' and say a warm thank you."
+        )
+
+    system_instruction = (
+        "You are a professional AI Recruiter. Ask insightful follow-up questions one at a time. "
+        "Be polite, professional, and concise. "
+        f"{timing_instruction} "
+        "The candidate just said: "
+    )
+    full_prompt = f"{system_instruction}\"{prompt}\"\n\nRespond and ask the next question (or conclude if appropriate)."
     
     try:
         response = requests.post(OLLAMA_URL, json={
             "model": OLLAMA_MODEL,
-            "prompt": prompt,
+            "prompt": full_prompt,
             "stream": False,
             "context": context
         })
