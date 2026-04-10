@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Room</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container" style="max-width: 1200px;">
+        <h1>Interview with AI - {{ name }}</h1>
+        
+        <div class="interview-grid">
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline muted></video>
+                <div id="camStatus" class="status-badge status-on">CAM ON</div>
+                <div id="micStatus" class="status-badge status-on" style="top: 3rem;">MIC ON</div>
+            </div>
+
+            <div class="glass-card chat-box">
+                <div class="messages", id="chatMessages">
+                    <div class="message msg-ai">Waiting for you to start the interview...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" style="width: auto; padding: 1rem 3rem;">START INTERVIEW</button>
+            <button id="listenBtn" style="display: none; width: auto; background: #10b981;">
+                <i class="fas fa-microphone"></i> SPEAK NOW
+            </button>
+            <button id="endBtn" class="btn-red" style="display: none; width: auto;">END INTERVIEW</button>
+        </div>
+    </div>
+
+    <script src="/static/js/interview.js"></script>
+</body>
+</html>
