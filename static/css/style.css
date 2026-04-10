@@ -184,6 +184,17 @@ video {
 .btn-red { background: #ef4444; }
 .btn-red:hover { background: #dc2626; }
 
-@media (max-width: 768px) {{
-    .interview-grid {{ grid-template-columns: 1fr; }}
-}}
+button:disabled {
+    opacity: 0.5;
+    cursor:not-allowed;
+    transform: none !important;
+}
+
+input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .interview-grid { grid-template-columns: 1fr; }
+}

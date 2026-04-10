@@ -23,10 +23,11 @@ def schedule():
     name = request.form.get("name")
     email = request.form.get("email")
     time = request.form.get("time")
+    tech = request.form.get("technology", "General")
+    diff = request.form.get("difficulty", "Medium")
     
-    # time format: YYYY-MM-DDTHH:MM
-    token = schedule_interview(name, email, time)
-    base_url = "http://localhost:8000" # Change if deploying
+    token = schedule_interview(name, email, time, tech, diff)
+    base_url = "http://localhost:8000"
     link = f"{base_url}/interview?token={token}"
     
     success = send_interview_email(email, name, time, link)
@@ -43,11 +44,9 @@ def interview_room():
     if not interview:
         return "Interview not found", 404
     
-    # Time window check
     now = datetime.now()
     interview_time = datetime.strptime(interview['interview_time'], "%Y-%m-%dT%H:%M")
     
-    # Allowed to join 5 mins before and 30 mins after
     slot_start = interview_time - timedelta(minutes=5)
     slot_end = interview_time + timedelta(minutes=30)
     
@@ -56,7 +55,11 @@ def interview_room():
     if now > slot_end:
         return f"<h1>Interview Expired</h1><p>The interview slot for {interview['interview_time']} has expired.</p>", 403
 
-    return render_template("interview.html", name=interview['candidate_name'], token=token)
+    return render_template("interview.html", 
+                         name=interview['candidate_name'], 
+                         token=token, 
+                         technology=interview['technology'], 
+                         difficulty=interview['difficulty'])
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -64,26 +67,37 @@ def chat():
     prompt = data.get("prompt")
     context = data.get("context", [])
     elapsed_minutes = data.get("elapsed_minutes", 0)
+    is_initial = data.get("is_initial", False)
+    technology = data.get("technology", "General")
+    difficulty = data.get("difficulty", "Medium")
     
     # Guidelines for the AI
+    base_instruction = (
+        f"You are a professional AI Technical Recruiter. You are conducting an interview for the technology: {technology} "
+        f"at a {difficulty} difficulty level. "
+        "Ask insightful technical and behavioral questions one at a time. Be polite, professional, and concise. "
+    )
+
     if elapsed_minutes < 10:
         timing_instruction = (
-            f"Note: Only {elapsed_minutes:.1f} minutes have passed. The interview MUST last at least 10 minutes. "
-            "Continue asking deep technical or behavioral questions to evaluate the candidate."
+            f"Context: Only {elapsed_minutes:.1f} minutes have passed. The interview MUST last at least 10 minutes. "
+            f"Continue asking {difficulty}-level technical questions about {technology} to evaluate the candidate."
         )
     else:
         timing_instruction = (
-            f"{elapsed_minutes:.1f} minutes have passed. You may now conclude the interview if you have enough information. "
+            f"Context: {elapsed_minutes:.1f} minutes have passed. You may now conclude the interview if you have enough information. "
             "If you decide to end, you MUST start your response with exactly '[CONCLUDE]' and say a warm thank you."
         )
 
-    system_instruction = (
-        "You are a professional AI Recruiter. Ask insightful follow-up questions one at a time. "
-        "Be polite, professional, and concise. "
-        f"{timing_instruction} "
-        "The candidate just said: "
-    )
-    full_prompt = f"{system_instruction}\"{prompt}\"\n\nRespond and ask the next question (or conclude if appropriate)."
+    if is_initial:
+        full_prompt = (
+            f"{base_instruction} Start the interview now. Introduce yourself and ask the candidate to introduce themselves. "
+        )
+    else:
+        full_prompt = (
+            f"{base_instruction} {timing_instruction} The candidate just said: \"{prompt}\" "
+            "Respond and ask the next insightful question."
+        )
     
     try:
         response = requests.post(OLLAMA_URL, json={
@@ -94,6 +108,7 @@ def chat():
         })
         return response.json()
     except Exception as e:
+        print(f"Ollama Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":

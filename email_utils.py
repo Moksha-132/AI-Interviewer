@@ -9,7 +9,7 @@ load_dotenv()
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER", "")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+MAIL_PASSWORD = os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "AI Interview Room")
 
 def send_interview_email(to_email, candidate_name, interview_time, interview_link):

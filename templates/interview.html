@@ -28,10 +28,16 @@
 
         <div class="controls">
             <button id="startBtn" style="width: auto; padding: 1rem 3rem;">START INTERVIEW</button>
-            <button id="listenBtn" style="display: none; width: auto; background: #10b981;">
-                <i class="fas fa-microphone"></i> SPEAK NOW
-            </button>
-            <button id="endBtn" class="btn-red" style="display: none; width: auto;">END INTERVIEW</button>
+            <div id="interviewControls" style="display: none; width: 100%; gap: 1rem; align-items: center;">
+                <input type="hidden" id="techData" value="{{ technology }}">
+                <input type="hidden" id="diffData" value="{{ difficulty }}">
+                <input type="text" id="textInput" placeholder="Type your answer here..." style="flex-grow: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid #3f3f46; background: #18181b; color: white;">
+                <button id="sendTextBtn" class="btn-primary" style="width: auto; padding: 0.8rem 1.5rem;">SEND</button>
+                <button id="listenBtn" style="width: auto; background: #10b981; padding: 0.8rem 1.5rem;">
+                    <i class="fas fa-microphone"></i> SPEAK
+                </button>
+                <button id="endBtn" class="btn-red" style="width: auto; padding: 0.8rem 1.5rem;">EXIT</button>
+            </div>
         </div>
     </div>
 

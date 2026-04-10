@@ -3,37 +3,49 @@ const chatMessages = document.getElementById('chatMessages');
 const startBtn = document.getElementById('startBtn');
 const listenBtn = document.getElementById('listenBtn');
 const endBtn = document.getElementById('endBtn');
+const interviewControls = document.getElementById('interviewControls');
+const textInput = document.getElementById('textInput');
+const sendTextBtn = document.getElementById('sendTextBtn');
 
 let recognition;
 let ollamaContext = [];
 let startTime = null;
-const candidateName = "{{ name }}";
+let isMicActive = false;
 
 // Initialize Speech Recognition
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = false; // We use restart logic for better turn management
     recognition.lang = 'en-US';
     recognition.interimResults = false;
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
-        addMessage(transcript, 'user');
-        sendToAI(transcript);
-        listenBtn.innerText = 'SPEAK NOW';
-        listenBtn.style.opacity = '1';
+        handleUserMessage(transcript);
+    };
+
+    recognition.onend = () => {
+        // If mic is still supposed to be active (and not aborted for AI speech), restart it
+        if (isMicActive && !window.speechSynthesis.speaking) {
+            try { recognition.start(); } catch(e) {}
+        } else if (!window.speechSynthesis.speaking) {
+            listenBtn.innerText = 'SPEAK';
+            listenBtn.style.background = '#10b981';
+        }
     };
 
     recognition.onerror = (event) => {
+        if (event.error === 'no-speech') {
+             // Just restart if no speech was detected
+             return;
+        }
         console.error("Speech Rec Error:", event.error);
-        listenBtn.innerText = 'MIC ERROR - TRY AGAIN';
+        isMicActive = false;
+        listenBtn.innerText = 'SPEAK';
     };
-} else {
-    alert("Speech Recognition is not supported in this browser. Please use Chrome or Edge.");
 }
 
-// Camera Access
 async function initCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -57,23 +69,40 @@ function speak(text) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1;
     utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
     
-    // Stop recognition while AI is speaking
-    utterance.onstart = () => recognition.abort();
-    utterance.onend = () => {
-        listenBtn.style.display = 'inline-block';
+    utterance.onstart = () => {
+        if (recognition) {
+            recognition.abort(); // Stop listening while AI speaks
+        }
     };
+
+    utterance.onend = () => {
+        // AI finished speaking, resume listening if it was active
+        if (isMicActive && recognition) {
+            listenBtn.innerText = 'LISTENING...';
+            listenBtn.style.background = '#ef4444'; // Red for listening
+            try { recognition.start(); } catch(e) {}
+        } else {
+            listenBtn.innerText = 'SPEAK';
+        }
+    };
+    
+    window.speechSynthesis.speak(utterance);
 }
 
-async function sendToAI(text) {
-    const listenBtn = document.getElementById('listenBtn');
-    listenBtn.disabled = true;
-    listenBtn.style.opacity = '0.5';
-    listenBtn.innerText = 'AI IS THINKING...';
+async function handleUserMessage(text) {
+    if (!text.trim()) return;
+    addMessage(text, 'user');
+    textInput.value = '';
+    await sendToAI(text);
+}
 
-    // Calculate elapsed time
-    const elapsedMinutes = startTime ? (Date.now() - startTime) / 60000 : 0;
+async function sendToAI(text, isInitial = false) {
+    const controls = [textInput, sendTextBtn, listenBtn];
+    controls.forEach(c => c.disabled = true);
+    
+    // If it's the user's turn (not initial), we keep the mic active flag
+    // so it restarts after the AI replies
 
     const response = await fetch('/chat', {
         method: 'POST',
@@ -81,62 +110,87 @@ async function sendToAI(text) {
         body: JSON.stringify({ 
             prompt: text, 
             context: ollamaContext,
-            elapsed_minutes: elapsedMinutes
+            elapsed_minutes: startTime ? (Date.now() - startTime) / 60000 : 0,
+            is_initial: isInitial,
+            technology: document.getElementById('techData').value,
+            difficulty: document.getElementById('diffData').value
         })
     });
     
     const data = await response.json();
-    let aiResponse = data.response || "";
     
-    // Check for conclusion tag
-    const isConcluding = aiResponse.includes('[CONCLUDE]');
-    if (isConcluding) {
-        aiResponse = aiResponse.replace('[CONCLUDE]', '').trim();
-    }
+    if (data.error) {
+        addMessage(`Error: ${data.error}`, 'ai');
+    } else {
+        let aiResponse = data.response || "";
+        const isConcluding = aiResponse.includes('[CONCLUDE]');
+        if (isConcluding) aiResponse = aiResponse.replace('[CONCLUDE]', '').trim();
 
-    listenBtn.disabled = false;
-    listenBtn.style.opacity = '1';
-    listenBtn.innerText = 'SPEAK NOW';
-
-    if (aiResponse) {
-        ollamaContext = data.context;
-        addMessage(aiResponse, 'ai');
-        speak(aiResponse);
-        
-        if (isConcluding) {
-            endInterviewInternally();
+        if (aiResponse) {
+            ollamaContext = data.context;
+            addMessage(aiResponse, 'ai');
+            speak(aiResponse);
+            
+            if (isConcluding) endInterviewInternally();
         }
     }
+    
+    controls.forEach(c => c.disabled = false);
 }
 
 function endInterviewInternally() {
-    listenBtn.style.display = 'none';
+    isMicActive = false;
+    if (recognition) recognition.abort();
+    interviewControls.style.display = 'none';
     const msg = document.createElement('div');
+    msg.className = 'glass-card';
     msg.style.textAlign = 'center';
-    msg.style.padding = '1rem';
-    msg.style.color = '#4ade80';
-    msg.innerHTML = "<h3>Interview Completed Successfully</h3><p>You may now close this window.</p>";
+    msg.style.padding = '2rem';
+    msg.style.marginTop = '2rem';
+    msg.style.border = '1px solid #4ade80';
+    msg.innerHTML = "<h2 style='color: #4ade80'>Interview Completed</h2><p>Thank you for your time.</p><button onclick='window.location.href=\"/\"' style='margin-top: 1rem;'>Back to Home</button>";
     chatMessages.appendChild(msg);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 startBtn.onclick = async () => {
+    startBtn.disabled = true;
+    startBtn.innerText = 'Initializing...';
     await initCamera();
-    startTime = Date.now(); // Record start time
+    startTime = Date.now();
     startBtn.style.display = 'none';
-    endBtn.style.display = 'inline-block';
+    interviewControls.style.display = 'flex';
     
-    const greeting = `Hello! I am your AI interviewer today. I'll be conducting this session for about 10-15 minutes. Can you please introduce yourself?`;
-    addMessage(greeting, 'ai');
-    speak(greeting);
+    // For the very first question, we can enable auto-listening
+    isMicActive = true; 
+    await sendToAI("START_INTERVIEW", true);
 };
 
 listenBtn.onclick = () => {
-    listenBtn.innerText = 'LISTENING...';
-    listenBtn.style.opacity = '0.5';
-    recognition.start();
+    if (recognition) {
+        if (isMicActive) {
+            // Toggle off
+            isMicActive = false;
+            recognition.abort();
+            listenBtn.innerText = 'SPEAK';
+            listenBtn.style.background = '#10b981';
+        } else {
+            // Toggle on
+            isMicActive = true;
+            listenBtn.innerText = 'LISTENING...';
+            listenBtn.style.background = '#ef4444';
+            try { recognition.start(); } catch(e) {}
+        }
+    } else {
+        alert("Speech recognition not supported.");
+    }
+};
+
+sendTextBtn.onclick = () => handleUserMessage(textInput.value);
+textInput.onkeypress = (e) => {
+    if (e.key === 'Enter') handleUserMessage(textInput.value);
 };
 
 endBtn.onclick = () => {
-    window.location.href = '/';
+    if (confirm("Are you sure?")) window.location.href = '/';
 };
